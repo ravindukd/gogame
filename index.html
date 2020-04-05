@@ -5,284 +5,337 @@
     <meta charset="UTF-8" />
     <title>Game UI</title>
     <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"
+        integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script>
     <style type="text/css">
         body {
             margin: 0;
+            background-image: url("./assets/sea.png");
+            background-size: 100%;
+        }
+
+        canvas {
+            display: block;
+            margin: auto;
+        }
+
+        .class {
+            display: block;
+            margin: auto;
         }
     </style>
 </head>
 
 <body>
+    <div class="text-center mt-4">
+        <div class="container">
+            <h1>Welcome to GoGame.</h1>
+            <p>If you see a another player here, it's someone else who plays this game right now. Yes this is a
+                multiplayer
+                game.</p>
+            <div id="list">
+            </div>
+            <script type="text/javascript">
 
-    <script type="text/javascript">
+                var config = {
+                    type: Phaser.AUTO,
+                    width: 1024,
+                    height: 768,
+                    physics: {
+                        default: 'arcade',
+                        arcade: {
+                            gravity: { y: 300 },
+                            debug: false
+                        }
+                    },
+                    scene: {
+                        preload: preload,
+                        create: create,
+                        update: update
+                    }
+                };
 
-        var config = {
-            type: Phaser.AUTO,
-            width: 1024,
-            height: 768,
-            physics: {
-                default: 'arcade',
-                arcade: {
-                    gravity: { y: 300 },
-                    debug: false
+                var player;
+                var stars;
+                var bombs;
+                var platforms;
+                var cursors;
+                var score = 0;
+                var gameOver = false;
+                var scoreText;
+                let players = 0;
+                let c = 0;
+                var game = new Phaser.Game(config);
+                var ws;
+                var username;
+                var ps = {}
+                var pnames = {}
+                var points = {}
+                var teext;
+                var cx, cy;
+
+                function preload() {
+                    this.load.image('sky', 'assets/sky.png');
+                    this.load.image('ground', 'assets/platform.png');
+                    this.load.image('star', 'assets/star.png');
+                    this.load.image('bomb', 'assets/bomb.png');
+                    this.load.spritesheet('dude',
+                        'assets/dude.png',
+                        { frameWidth: 32, frameHeight: 48 }
+                    );
+                    ws = new WebSocket("ws://localhost:8000/ws");
+
                 }
-            },
-            scene: {
-                preload: preload,
-                create: create,
-                update: update
-            }
-        };
-
-        var player;
-        var stars;
-        var bombs;
-        var platforms;
-        var cursors;
-        var score = 0;
-        var gameOver = false;
-        var scoreText;
-        let players = 0;
-        let c = 0;
-        var game = new Phaser.Game(config);
-        var ws;
-        var username
-        var ps = {}
-        var pnames = {}
-        var teext;
-        var cx, cy;
-
-        function preload() {
-            this.load.image('sky', 'assets/sky.png');
-            this.load.image('ground', 'assets/platform.png');
-            this.load.image('star', 'assets/star.png');
-            this.load.image('bomb', 'assets/bomb.png');
-            this.load.spritesheet('dude',
-                'assets/dude.png',
-                { frameWidth: 32, frameHeight: 48 }
-            );
-            ws = new WebSocket("ws://localhost:8000/ws");
-
-        }
 
 
-        function create() {
-            username = Math.floor(Math.random() * 10) + "";
-            ws.onopen = function () {
-                console.log("Connected");
-                ws.send(
-                    JSON.stringify({
-                        username: username,
-                        x: 100,
-                        y: 512,
-                        active: true
-                    }));
-            };
-            ws.onmessage = function (e) {
-                var msg = JSON.parse(e.data);
-                console.log('UP : ', msg.side)
+                function create() {
+                    username = prompt('Enter Your Name: ');
+                    ws.onopen = function () {
+                        console.log("Connected");
+                        ws.send(
+                            JSON.stringify({
+                                username: username,
+                                x: 100,
+                                y: 512,
+                                active: true,
+                                points: score
+                            }));
+                            
+                    };
+                    ws.onmessage = function (e) {
+                        var msg = JSON.parse(e.data);
 
-                if(msg.active == false) {
-                    console.log("active : ",msg.active)
-                    ps[msg.username].setPosition(100, 512)
+                        if (msg.active == false) {
+                            ps[msg.username].setPosition(100, 512)
+                        }
+                        if (username != msg.username) {
+                            if (ps[msg.username]) {
+                                ps[msg.username].anims.play(msg.side, true);
+                                ps[msg.username].setPosition(msg.x, msg.y)
+                                updateList(msg.username, msg.points)
+                            } else {
+                                var newp = players.create(msg.x, msg.y, 'dude')
+                                ps[msg.username] = newp
+                                let str = `<h3><span class="badge badge-primary"> ` + key + `</span> <span class="badge badge-secondary">` + points[key] + `</span></h3>`
+                                $('#list').append(str)
+                            }
+                        }
+                    };
+
+                    ws.onclose = function () {
+                        console.log("Connection is closed...");
+                    };
+
+
+                    this.add.image(512, 384, 'sky');
+
+                    platforms = this.physics.add.staticGroup();
+                    platforms.create(512, 728, 'ground').setScale(2).refreshBody();
+                    platforms.create(768, 570, 'ground');
+                    platforms.create(60, 400, 'ground');
+                    platforms.create(856, 300, 'ground');
+
+                    player = this.physics.add.sprite(100, 512, 'dude');
+
+                    player.setBounce(0.2);
+                    player.setCollideWorldBounds(true);
+                    this.anims.create({
+                        key: 'left',
+                        frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+                        frameRate: 10,
+                        repeat: -1
+                    });
+                    this.anims.create({
+                        key: 'turn',
+                        frames: [{ key: 'dude', frame: 4 }],
+                        frameRate: 20
+                    });
+                    this.anims.create({
+                        key: 'right',
+                        frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+                        frameRate: 10,
+                        repeat: -1
+                    });
+
+                    cursors = this.input.keyboard.createCursorKeys();
+
+                    stars = this.physics.add.group({
+                        key: 'star',
+                        repeat: 11,
+                        setXY: { x: 12, y: 0, stepX: 70 }
+                    });
+
+                    stars.children.iterate(function (child) {
+                        child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.6));
+                    });
+                    scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+
+                    bombs = this.physics.add.group();
+                    players = this.physics.add.group()
+                    teext = this.physics.add.group()
+
+
+                    this.physics.add.collider(bombs, platforms);
+                    this.physics.add.collider(players, platforms);
+
+                    this.physics.add.collider(player, platforms);
+                    this.physics.add.collider(stars, platforms);
+
+                    this.physics.add.overlap(player, stars, collectStar, null, this);
+                    this.physics.add.overlap(players, stars, collectStars, null, this);
+
+                    this.physics.add.collider(player, bombs, hitBomb, null, this);
                 }
-                if (username != msg.username) {
-                    if (ps[msg.username]) {
-                        ps[msg.username].anims.play(msg.side, true);
-                        ps[msg.username].setPosition(msg.x, msg.y)
-                        console.log('Innawa')
-                    } else {
-                        var newp = players.create(msg.x, msg.y, 'dude')
-                        ps[msg.username] = newp
+
+
+
+                function update() {
+
+                    if (cursors.left.isDown) {
+                        player.setVelocityX(-160);
+
+                        player.anims.play('left', true);
+                        playerUpdate('left')
+
+                    }
+                    else if (cursors.right.isDown) {
+                        player.setVelocityX(160);
+
+                        player.anims.play('right', true);
+                        playerUpdate('right')
+                    }
+                    else {
+                        player.setVelocityX(0);
+                        player.anims.play('turn');
+                        playerUpdate('turn')
+                    }
+
+                    if (cursors.up.isDown && player.body.touching.down) {
+                        player.setVelocityY(-330);
+                        playerUpdate('turn')
+                    }
+
+                }
+
+                function collectStar(player, star) {
+                    star.disableBody(true, true);
+                    score += 10;
+                    scoreText.setText('Score: ' + score);
+                    ws.send(
+                        JSON.stringify({
+                            username: username + "",
+                            x: player.x,
+                            y: player.y,
+                            side: 'turn',
+                            active: true,
+                            points: score
+                        }));
+
+                    if (stars.countActive(true) === 0) {
+                        stars.children.iterate(function (child) {
+
+                            child.enableBody(true, child.x, 0, true, true);
+
+                        });
+
+                        var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+
+                        var bomb = bombs.create(x, 16, 'bomb');
+                        bomb.setBounce(1);
+                        bomb.setCollideWorldBounds(true);
+                        bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+
                     }
                 }
-            };
-            
-            ws.onclose = function () {
-                console.log("Connection is closed...");
-            };
+
+                function collectStars(player, star) {
+                    star.disableBody(true, true);
+                    // scoreText.setText('Score: ' + score);
+
+                    if (stars.countActive(true) === 0) {
+                        stars.children.iterate(function (child) {
+
+                            child.enableBody(true, child.x, 0, true, true);
+
+                        });
+
+                        var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
+
+                        var bomb = bombs.create(x, 16, 'bomb');
+                        bomb.setBounce(1);
+                        bomb.setCollideWorldBounds(true);
+                        bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+
+                    }
+                }
+
+                function hitBomb(player, bomb) {
+                    player.setTint(0xff0000);
+
+                    player.anims.play('turn');
+                    player.setPosition(100, 512)
+                    score = score - 50
+                    gameOver = true;
+                    scoreText.setText('Game Over !! Your Score ' + score)
+                    gameOvers()
+                }
+
+                function gameOvers() {
+                    ws.send(
+                        JSON.stringify({
+                            username: username + "",
+                            x: player.x,
+                            y: player.y,
+                            side: 'turn',
+                            active: false,
+                            points: score
+                        }));
+                }
+
+                function playerUpdate(side) {
+
+                    if (cx == player.x && cy == player.y) {
+                        return true
+                    }
+                    cy = player.y
+                    cx = player.x
 
 
-            this.add.image(512, 384, 'sky');
+                    let skip = 1 // SKIP
+                    if (c == skip) {
+                        ws.send(
+                            JSON.stringify({
+                                username: username + "",
+                                x: player.x,
+                                y: player.y,
+                                side: side,
+                                active: true,
+                                points: score
+                            }));
+                        c = 0
+                    }
+                    c++
+                }
 
-            platforms = this.physics.add.staticGroup();
-            platforms.create(512, 728, 'ground').setScale(2).refreshBody();
-            platforms.create(768, 570, 'ground');
-            platforms.create(60, 400, 'ground');
-            platforms.create(856, 300, 'ground');
+                function updateList(user, point) {
+                    points[user] = point
+                    $('#list').html('');
 
-            player = this.physics.add.sprite(100, 512, 'dude');
-
-            player.setBounce(0.2);
-            player.setCollideWorldBounds(true);
-            this.anims.create({
-                key: 'left',
-                frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
-                frameRate: 10,
-                repeat: -1
-            });
-            this.anims.create({
-                key: 'turn',
-                frames: [{ key: 'dude', frame: 4 }],
-                frameRate: 20
-            });
-            this.anims.create({
-                key: 'right',
-                frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
-                frameRate: 10,
-                repeat: -1
-            });
-
-            cursors = this.input.keyboard.createCursorKeys();
-
-            stars = this.physics.add.group({
-                key: 'star',
-                repeat: 11,
-                setXY: { x: 12, y: 0, stepX: 70 }
-            });
-
-            stars.children.iterate(function (child) {
-                child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.6));
-            });
-            scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
-
-            bombs = this.physics.add.group();
-            players = this.physics.add.group()
-            teext = this.physics.add.group()
+                    Object.keys(points).forEach(function (key) {
+                        var val = points[key];
+                        let str = `<h3><span class="badge badge-primary"> ` + key + `</span> <span class="badge badge-secondary">` + points[key] + `</span></h3>`
+                        $('#list').append(str)
+                    });
+                }
 
 
-            this.physics.add.collider(bombs, platforms);
-            this.physics.add.collider(players, platforms);
+            </script>
 
-            this.physics.add.collider(player, platforms);
-            this.physics.add.collider(stars, platforms);
-
-            this.physics.add.overlap(player, stars, collectStar, null, this);
-            this.physics.add.overlap(players, stars, collectStars, null, this);
-
-            this.physics.add.collider(player, bombs, hitBomb, null, this);
-        }
+        </div>
+    </div>
 
 
-
-        function update() {
-
-            if (cursors.left.isDown) {
-                player.setVelocityX(-160);
-
-                player.anims.play('left', true);
-                playerUpdate('left')
-
-            }
-            else if (cursors.right.isDown) {
-                player.setVelocityX(160);
-
-                player.anims.play('right', true);
-                playerUpdate('right')
-            }
-            else {
-                player.setVelocityX(0);
-                player.anims.play('turn');
-                playerUpdate('turn')
-            }
-
-            if (cursors.up.isDown && player.body.touching.down) {
-                player.setVelocityY(-330);
-                playerUpdate('turn')
-            }
-        }
-
-        function collectStar(player, star) {
-            star.disableBody(true, true);
-            score += 10;
-            scoreText.setText('Score: ' + score);
-
-            if (stars.countActive(true) === 0) {
-                stars.children.iterate(function (child) {
-
-                    child.enableBody(true, child.x, 0, true, true);
-
-                });
-
-                var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
-
-                var bomb = bombs.create(x, 16, 'bomb');
-                bomb.setBounce(1);
-                bomb.setCollideWorldBounds(true);
-                bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
-
-            }
-        }
-
-        function collectStars(player, star) {
-            star.disableBody(true, true);
-            console.log(player)
-            // scoreText.setText('Score: ' + score);
-
-            if (stars.countActive(true) === 0) {
-                stars.children.iterate(function (child) {
-
-                    child.enableBody(true, child.x, 0, true, true);
-
-                });
-
-                var x = (player.x < 400) ? Phaser.Math.Between(400, 800) : Phaser.Math.Between(0, 400);
-
-                var bomb = bombs.create(x, 16, 'bomb');
-                bomb.setBounce(1);
-                bomb.setCollideWorldBounds(true);
-                bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
-
-            }
-        }
-
-        function hitBomb(player, bomb) {
-            player.setTint(0xff0000);
-
-            player.anims.play('turn');
-            player.setPosition(100,512)
-            gameOver = true;
-            scoreText.setText('Game Over !! Your Score ' + score)
-            gameOvers()
-        }
-
-        function gameOvers() {
-            ws.send(
-                    JSON.stringify({
-                        username: username + "",
-                        x: player.x,
-                        y: player.y,
-                        side: 'turn',
-                        active: false
-                    }));
-        }
-
-        function playerUpdate(side) {
-
-            if (cx == player.x && cy == player.y) {
-                return true
-            }
-            cy = player.y
-            cx = player.x
-
-
-            let skip = 1 // SKIP
-            if (c == skip) {
-                ws.send(
-                    JSON.stringify({
-                        username: username + "",
-                        x: player.x,
-                        y: player.y,
-                        side: side,
-                        active: true
-                    }));
-                c = 0
-            }
-            c++
-        }
-
-
-    </script>
 
 </body>
 

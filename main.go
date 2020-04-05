@@ -16,6 +16,7 @@ type Message struct {
 	Y  float64 `json:"y"`
 	Side string `json:"side"`
 	Active bool `json:"active"`
+	Points  int `json:"points"`
 }
 
 func main()  {
